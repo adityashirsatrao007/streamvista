@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 const connectDB = require("./db");
 const History = require("./models/History");
+const { spawn } = require("child_process");
 
 const app = express();
 app.use(cors());
@@ -57,6 +58,32 @@ app.get("/api/history", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ML Predict Endpoint
+app.post("/api/predict", (req, res) => {
+  const input = JSON.stringify(req.body.input); // Example: [1, 0, 1, 0]
+
+  const python = spawn("py", ["-3.11", "ml/predict.py", input]);
+
+  let output = "";
+  python.stdout.on("data", (data) => {
+    output += data.toString();
+  });
+
+  python.stderr.on("data", (data) => {
+    console.error(`Python error: ${data}`);
+  });
+
+  python.on("close", (code) => {
+    try {
+      const result = JSON.parse(output);
+      res.json({ prediction: result });
+    } catch (e) {
+      console.error("Output parse error:", output);
+      res.status(500).json({ error: "Prediction failed", detail: output });
+    }
+  });
 });
 
 // Start Server
